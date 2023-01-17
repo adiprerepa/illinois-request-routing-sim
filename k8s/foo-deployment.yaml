@@ -1,0 +1,21 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: foo-deployment
+  labels:
+    app: foo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: foo
+  template:
+    metadata:
+      labels:
+        app: foo
+    spec:
+      containers:
+      - command:
+        - /prime-main
+        image: illinois-req-route-prime:latest
+        name: foo-app
