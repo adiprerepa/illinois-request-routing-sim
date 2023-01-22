@@ -47,7 +47,7 @@ func sumOfPrimes(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/primeRange", sumOfPrimes)
-	if err := http.ListenAndServe(":80", mux); err != nil {
+	if err := http.ListenAndServe(":8081", mux); err != nil {
 		fmt.Printf("couldn't start server: %v", err)
 	}
 }
