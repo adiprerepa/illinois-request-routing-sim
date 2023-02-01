@@ -1,53 +1,66 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
 
-func sumOfPrimes(w http.ResponseWriter, r *http.Request) {
-	begin := 3
-	end := 100000
-	if r.URL.Query().Has("begin") {
-		val, err := strconv.Atoi(r.URL.Query().Get("begin"))
-		if err == nil {
-			begin = val
-		}
+var (
+	callSize       float64
+	callDownstream string
+)
+
+func callMeHandler(w http.ResponseWriter, r *http.Request) {
+	reqBodySize, _ := io.Copy(ioutil.Discard, r.Body)
+	fmt.Printf("request of size %v recvd. ", reqBodySize)
+	if callDownstream == "NONE" {
+		fmt.Println()
+		w.Write([]byte("done."))
+		return
 	}
-	if r.URL.Query().Has("end") {
-		val, err := strconv.Atoi(r.URL.Query().Get("end"))
-		if err == nil {
-			end = val
-		}
+	requestUrl := fmt.Sprintf("http://%s:9080/callme", callDownstream)
+	body := make([]byte, int(math.Pow(10, 6)*callSize))
+	_, err := rand.Read(body)
+	if err != nil {
+		fmt.Printf("couldn't read random bytes: %v", err)
+		return
 	}
-	start := time.Now().UnixMilli()
-	fmt.Printf("calculating from %d to %d ", begin, end)
-	sum := 0
-	for begin <= end {
-		prime := true
-		for i := 2; i <= int(math.Sqrt(float64(begin))); i++ {
-			if begin%i == 0 {
-				prime = false
-				break
-			}
-		}
-		if prime {
-			sum += begin
-		}
-		begin++
+	bodyReader := bytes.NewReader(body)
+	req, err := http.NewRequest(http.MethodPost, requestUrl, bodyReader)
+	if err != nil {
+		fmt.Printf("couldn't create http request: %v", err)
+		return
 	}
-	finish := time.Now().UnixMilli()
-	fmt.Printf("took %d millis\n", finish-start)
-	w.Write([]byte(strconv.Itoa(begin + end)))
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+	fmt.Printf("making call to %v size %v\n", callDownstream, callSize)
+	_, err = client.Do(req)
+	if err != nil {
+		fmt.Printf("couldn't make request: %v", err)
+		return
+	}
 }
 
 func main() {
+	callDownstream = os.Getenv("CALL_DOWNSTREAM")
+	if callDownstream != "NONE" {
+		callSize, _ = strconv.ParseFloat(os.Getenv("CALL_SIZE_MB"), 64)
+	} else {
+		callSize = 0
+	}
+	fmt.Printf("calling downstream service %v with size %v", callDownstream, callSize)
 	mux := http.NewServeMux()
-	mux.HandleFunc("/primeRange", sumOfPrimes)
-	if err := http.ListenAndServe(":8081", mux); err != nil {
+	mux.HandleFunc("/callme", callMeHandler)
+	if err := http.ListenAndServe(":9080", mux); err != nil {
 		fmt.Printf("couldn't start server: %v", err)
 	}
 }

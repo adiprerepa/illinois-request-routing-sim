@@ -1,0 +1,260 @@
+##################
+#    Service A   #
+##################
+apiVersion: v1
+kind: Service
+metadata:
+  name: a
+  labels:
+    app: a
+    service: a
+spec:
+  ports:
+  - port: 9080
+    name: http
+  selector:
+    app: a
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: requestrouting-a
+  labels:
+    account: a
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a-v1
+  labels:
+    app: a
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: a
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: a
+        version: v1
+    spec:
+      serviceAccountName: requestrouting-a
+      nodeSelector:
+        request-routing/cluster: west
+      containers:
+        - name: a
+          image: illinois-request-routing-spam:latest
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CALL_SIZE_MB
+              value: "0.5"
+            - name: CALL_DOWNSTREAM
+              value: "b"
+          ports:
+            - containerPort: 9080
+---
+##################
+#    Service B   #
+##################
+apiVersion: v1
+kind: Service
+metadata:
+  name: b
+  labels:
+    app: b
+    service: b
+spec:
+  ports:
+    - port: 9080
+      name: http
+  selector:
+    app: b
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: requestrouting-b
+  labels:
+    account: b
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: b-v1
+  labels:
+    app: b
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: b
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: b
+        version: v1
+    spec:
+      serviceAccountName: requestrouting-b
+      nodeSelector:
+        request-routing/cluster: west
+      containers:
+        - name: b
+          image: illinois-request-routing-spam:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          env:
+            - name: CALL_SIZE_MB
+              value: "5"
+            - name: CALL_DOWNSTREAM
+              value: "c"
+          ports:
+            - containerPort: 9080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: b-v2
+  labels:
+    app: b
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: b
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: b
+        version: v2
+    spec:
+      serviceAccountName: requestrouting-b
+      nodeSelector:
+        request-routing/cluster: east
+      containers:
+        - name: b
+          image: illinois-request-routing-spam:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          env:
+            - name: CALL_SIZE_MB
+              value: "5"
+            - name: CALL_DOWNSTREAM
+              value: "c"
+          ports:
+            - containerPort: 9080
+---
+##################
+#    Service C   #
+##################
+apiVersion: v1
+kind: Service
+metadata:
+  name: c
+  labels:
+    app: c
+    service: c
+spec:
+  ports:
+    - port: 9080
+      name: http
+  selector:
+    app: c
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: requestrouting-c
+  labels:
+    account: c
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: c-v1
+  labels:
+    app: c
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: c
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: c
+        version: v1
+    spec:
+      serviceAccountName: requestrouting-c
+      nodeSelector:
+        request-routing/cluster: east
+      containers:
+        - name: c
+          image: illinois-request-routing-spam:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          env:
+            - name: CALL_SIZE_MB
+              value: "5"
+            - name: CALL_DOWNSTREAM
+              value: "NONE"
+          ports:
+            - containerPort: 9080
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: a
+spec:
+  host: a
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: b
+spec:
+  host: b
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: c
+spec:
+  host: c
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+---
